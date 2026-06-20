@@ -7,6 +7,7 @@ import { TenantRegistry } from "./tenants/TenantRegistry";
 import { ConversationStore } from "./state/ConversationStore";
 import { SessionManager } from "./whatsapp/SessionManager";
 import { createApiServer } from "./api/server";
+import { eliteproConfig } from "./tenants/eliteproConfig";
 
 async function main() {
   logger.info("Salon AI Platform starting...");
@@ -21,7 +22,9 @@ async function main() {
   const store = ConversationStore.getInstance();
   await store.connect();
 
-  const _registry = TenantRegistry.getInstance();
+  const registry = TenantRegistry.getInstance();
+  registry.register(eliteproConfig);
+  logger.info({ tenantId: eliteproConfig.tenantId }, "Auto-registered tenant from config");
 
   const sessionManager = SessionManager.getInstance();
 
