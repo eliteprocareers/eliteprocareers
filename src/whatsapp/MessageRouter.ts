@@ -9,6 +9,13 @@ import { logger } from "../utils/logger";
 
 const RESET_KEYWORDS = ["reset", "start over", "restart", "clear", "new conversation"];
 
+export interface RouteResult {
+  reply: string;
+  alert?: { type: "PAYMENT_READY" | "NEEDS_HUMAN"; customerJid: string };
+}
+
+const ALERT_TAG_REGEX = /\[\[ALERT:(PAYMENT_READY|NEEDS_HUMAN)\]\]/;
+
 export class MessageRouter {
   private store: ConversationStore;
   private registry: TenantRegistry;
@@ -20,19 +27,19 @@ export class MessageRouter {
     this.ai = AIService.getInstance();
   }
 
-  async route(tenantId: string, customerJid: string, text: string): Promise<string> {
+  async route(tenantId: string, customerJid: string, text: string): Promise<RouteResult> {
     const log = logger.child({ tenantId, customerJid });
 
     const config = this.registry.get(tenantId);
     if (!config) {
       log.error("Tenant not found in registry");
-      return "This service is temporarily unavailable. Please contact our team directly.";
+      return { reply: "This service is temporarily unavailable. Please contact our team directly." };
     }
 
     if (RESET_KEYWORDS.some((k) => text.trim().toLowerCase().includes(k))) {
       await this.store.clearState(tenantId, customerJid);
       log.info("Conversation reset by customer");
-      return "No problem! I've cleared our conversation. How can I help you today?\n\nYou can ask me about:\n- Our services & prices\n- Booking an appointment\n- Our team\n- Opening hours";
+      return { reply: "No problem! I've cleared our conversation. How can I help you today?\n\nYou can ask me about:\n- Our services & prices\n- Booking an appointment\n- Our team\n- Opening hours" };
     }
 
     let state = await this.store.getState(tenantId, customerJid);
@@ -68,9 +75,18 @@ export class MessageRouter {
       log.error({ err }, "AI call failed");
 
       if (error?.status === 429) {
-        return "I'm currently handling a high volume of messages. Please try again in a moment!";
+        return { reply: "I'm currently handling a high volume of messages. Please try again in a moment!" };
       }
-      return "I'm having a brief technical issue. Please try again shortly, or contact our team directly.";
+      return { reply: "I'm having a brief technical issue. Please try again shortly, or contact our team directly." };
+    }
+
+    let alert: RouteResult["alert"] = undefined;
+    const match = reply.match(ALERT_TAG_REGEX);
+    if (match) {
+      const alertType = match[1] as "PAYMENT_READY" | "NEEDS_HUMAN";
+      alert = { type: alertType, customerJid };
+      reply = reply.replace(ALERT_TAG_REGEX, "").trim();
+      log.info({ alertType }, "Human handoff alert triggered");
     }
 
     await this.store.appendMessage(tenantId, customerJid, {
@@ -80,6 +96,6 @@ export class MessageRouter {
     });
 
     log.debug("Message routed successfully");
-    return reply;
+    return { reply, alert };
   }
 }

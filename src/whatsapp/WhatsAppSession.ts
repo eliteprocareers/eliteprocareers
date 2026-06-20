@@ -23,6 +23,7 @@ import { MessageRouter } from "./MessageRouter";
 import { useRedisAuthState } from "./useRedisAuthState";
 
 const MAX_RECONNECT_ATTEMPTS = 5;
+const ALERT_NUMBER = process.env.ALERT_NUMBER ?? "254702904562";
 const RECONNECT_DELAY_MS = 5000;
 
 export class WhatsAppSession extends EventEmitter {
@@ -166,10 +167,20 @@ export class WhatsAppSession extends EventEmitter {
     try {
       await this.socket?.sendPresenceUpdate("composing", customerJid);
 
-      const reply = await this.router.route(this.tenantId, customerJid, text);
+      const { reply, alert } = await this.router.route(this.tenantId, customerJid, text);
 
       await this.socket?.sendPresenceUpdate("paused", customerJid);
       await this.sendMessage(customerJid, reply);
+
+      if (alert) {
+        const alertJid = ALERT_NUMBER + "@s.whatsapp.net";
+        const customerNumber = customerJid.split("@")[0];
+        const label = alert.type === "PAYMENT_READY" ? "Customer ready to pay" : "Customer needs human attention";
+        const alertText = "ALERT (" + this.tenantId + "): " + label + "\nFrom: " + customerNumber;
+        this.sendMessage(alertJid, alertText).catch((err) =>
+          this.log.error({ err }, "Failed to send handoff alert")
+        );
+      }
     } catch (err) {
       this.log.error({ err, customerJid }, "Error processing message");
       await this.sendMessage(
