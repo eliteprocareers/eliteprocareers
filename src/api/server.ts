@@ -40,7 +40,7 @@ export function createApiServer(sessionManager: SessionManager) {
     next();
   }
 
-  app.get("/health", (_req, res) => {
+  app.get("/health", (_req: Request, res: Response) => {
     res.json({ status: "ok", sessions: sessionManager.getAllStatuses().length });
   });
 

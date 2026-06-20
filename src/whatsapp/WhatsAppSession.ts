@@ -102,7 +102,7 @@ export class WhatsAppSession extends EventEmitter {
         this.qrCode = await qrcode.toDataURL(qr);
 
         if (process.env.QR_TERMINAL === "true") {
-          qrcodeTerminal.generate(qr, { small: true }, (qrString) => {
+          qrcodeTerminal.generate(qr, { small: true }, (qrString: string) => {
             console.log("\n=== QR for tenant: " + this.tenantId + " ===\n" + qrString + "\n");
           });
         }
